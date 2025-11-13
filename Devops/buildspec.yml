@@ -13,7 +13,7 @@ phases:
       - echo Building the Docker image from Devops/Dockerfile...
       - cd Devops
       - ls -la
-      - docker build -t $ECR_REPOSITORY_URI:$IMAGE_TAG -f Devops/Dockerfile .
+      - docker build -t $ECR_REPOSITORY_URI:$IMAGE_TAG -f Dockerfile .
       - docker tag $ECR_REPOSITORY_URI:$IMAGE_TAG $ECR_REPOSITORY_URI:${ENVIRONMENT}-latest
       - docker tag $ECR_REPOSITORY_URI:$IMAGE_TAG $ECR_REPOSITORY_URI:latest
   post_build:
