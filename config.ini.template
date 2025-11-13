@@ -1,0 +1,104 @@
+
+# Ouroboros Core Configuration Template
+#
+# Copy this file to 'config.ini' and update the values below.
+# Environment variables can be used with ${VAR_NAME} syntax.
+#
+# For security, it's recommended to:
+# 1. Copy this template to 'config.ini'
+# 2. Set sensitive values via environment variables
+# 3. Keep 'config.ini' out of version control (it's already in .gitignore)
+
+[api]
+# API Keys - Use environment variables for security
+# OpenAI API key for GPT models
+openai = ${OPENAI_API_KEY}
+# Anthropic API key for Claude models  
+anthropic = ${ANTHROPIC_API_KEY}
+# LangChain API key for LangSmith tracing
+langchain = ${LANGCHAIN_API_KEY}
+
+[environment]
+# System workspace directory for ALL outputs, logs, and temporary files
+# All outputs go to: {system_workspace}/Working_Memory/
+system_workspace = ${SYSTEM_WORKSPACE:/tmp/ouroboros_workspace}
+# Python recursion limit for complex operations
+recursion_limit = ${RECURSION_LIMIT:500}
+
+# REMOVED: output_dir is deprecated - all outputs now go to {system_workspace}/Working_Memory/
+# If you have 'output_dir' in your config.ini, please remove it
+
+[mcp]
+# Path to MCP settings JSON file
+mcp_settings_file = ${MCP_SETTINGS_FILE:./ouroboros_core/oo_mcp_servers/mcp_settings.json}
+
+# MCP Server Environment Variables
+
+# Perplexity search service
+perplexity_api_key = ${PERPLEXITY_API_KEY}
+
+# Apify web scraping and automation service
+apify_token = ${APIFY_TOKEN}
+
+# Memory file path
+memory_file_path = ${MEMORY_FILE_PATH:./memory.jsonl}
+
+# Directory settings for workspace organization
+working_directory_name = ${WORKING_DIRECTORY_NAME:Working_Directory}
+longterm_directory_name = ${LONGTERM_DIRECTORY_NAME:Longterm_Directory}
+
+# Additional sections can be added here as needed.
+# When you add a new section:
+# 1. Update the corresponding dataclass in ouroboros_core/utils/config.py
+# 2. Add the section to the Config dataclass
+# 3. Update the load_config_from_file function to handle the new section
+# The system will automatically validate new fields and prompt users to update their config.ini
+
+[postgresql]
+# PostgreSQL Connection Settings
+# These settings work seamlessly in both local and Docker environments
+# Docker Compose automatically sets environment variables that override these defaults
+
+# Connection settings - use Docker service name in containers, localhost locally
+host = ${POSTGRESQL_HOST:localhost}
+port = ${POSTGRESQL_PORT:5432}
+database = ${POSTGRESQL_DATABASE:ouroboros_workflows}
+
+# Authentication - required for security
+username = ${POSTGRESQL_USERNAME:ouroboros}
+password = ${POSTGRESQL_PASSWORD:ouroboros_secure}
+
+# Optional: Override individual settings with a complete connection string
+# If provided, this takes precedence over the individual settings above
+connection_string = ${POSTGRESQL_CONNECTION_STRING}
+
+# Connection pool settings for performance
+max_pool_size = ${POSTGRESQL_MAX_POOL_SIZE:20}
+min_pool_size = ${POSTGRESQL_MIN_POOL_SIZE:5}
+connection_timeout = ${POSTGRESQL_CONNECTION_TIMEOUT:30}
+
+# SSL/TLS settings (set to true for secure deployments)
+use_ssl = ${POSTGRESQL_USE_SSL:false}
+ssl_mode = ${POSTGRESQL_SSL_MODE:prefer}
+
+# Database propagation control
+# Controls whether workflow operations are propagated to PostgreSQL
+# Environment variables take precedence over config settings
+# Default: false (standalone mode - no database propagation)
+enable_propagation = ${POSTGRESQL_ENABLE_PROPAGATION:false}
+
+# Strategy state tracking for frontend integration
+# Enables tracking of workflow execution state in PostgreSQL
+enable_strategy_tracking = ${POSTGRESQL_ENABLE_STRATEGY_TRACKING:false}
+
+[execution]
+# Dummy step mode for fast development and testing
+# When enabled, Workflow execution uses dummy simulation instead of real ASIS execution
+# Provides ~1 second execution time vs 5-10 minutes for real ASIS
+# All outputs are clearly marked with "~DUMMY-TEST~ NO REAL WORKFLOW RUN"
+dummy_step_mode = ${DUMMY_STEP_MODE:false}
+
+# Dummy step error simulation for testing error handling
+# When enabled, dummy steps have a 50% chance of simulating various error types
+# Useful for testing robust error handling and failure scenarios
+dummy_step_error_mode = ${DUMMY_STEP_ERROR_MODE:false}

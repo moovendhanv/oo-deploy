@@ -1,0 +1,266 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'AWS Batch with Spot Instances and Retry Configuration - SAM Template'
+
+Parameters:
+  VpcId:
+    Type: String
+    Description: VPC ID for Batch compute environment
+    Default: ''
+  
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: Comma-separated list of Subnet IDs
+    Default: ''
+  
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+
+  MaxRetryAttempts:
+    Type: Number
+    Default: 3
+    MinValue: 1
+    MaxValue: 10
+    Description: Maximum number of retry attempts for failed jobs
+
+Conditions:
+  HasVpcConfig: !Not [!Equals [!Ref VpcId, '']]
+
+Resources:
+  # IAM Role for Batch Service
+  BatchServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: batch.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for ECS Task Execution
+  EcsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for EC2 Instances
+  EcsInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  EcsInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EcsInstanceRole
+
+  # Security Group
+  BatchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: HasVpcConfig
+    Properties:
+      GroupDescription: !Sub 'Security group for Batch ${Environment}'
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub 'batch-spot-sg-${Environment}'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Spot Fleet Role
+  SpotFleetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: spotfleet.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Log Group
+  BatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/batch/spot-jobs-${Environment}'
+      RetentionInDays: 7
+
+  # Batch Compute Environment with SPOT
+  BatchComputeEnvironmentSpot:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: !Sub 'spot-${Environment}-env'
+      Type: MANAGED
+      State: ENABLED
+      ServiceRole: !GetAtt BatchServiceRole.Arn
+      ComputeResources:
+        Type: SPOT
+        AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
+        BidPercentage: 100
+        MinvCpus: 0
+        MaxvCpus: 4
+        DesiredvCpus: 0
+        InstanceTypes:
+          - m5.large
+          - m5.xlarge
+        Subnets: !If
+          - HasVpcConfig
+          - !Ref SubnetIds
+          - !Ref AWS::NoValue
+        SecurityGroupIds: !If
+          - HasVpcConfig
+          - [!Ref BatchSecurityGroup]
+          - !Ref AWS::NoValue
+        InstanceRole: !GetAtt EcsInstanceProfile.Arn
+        SpotIamFleetRole: !GetAtt SpotFleetRole.Arn
+        Tags:
+          Name: !Sub 'batch-spot-${Environment}'
+          Environment: !Ref Environment
+
+  # Job Queue
+  BatchJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub 'spot-${Environment}-queue'
+      State: ENABLED
+      Priority: 1
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref BatchComputeEnvironmentSpot
+
+  # Job Definition with Retry Strategy
+  BatchJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub 'sample-spot-job-${Environment}'
+      Type: container
+      PlatformCapabilities:
+        - EC2
+      # RETRY STRATEGY CONFIGURATION
+      RetryStrategy:
+        Attempts: !Ref MaxRetryAttempts
+      # TIMEOUT CONFIGURATION
+      Timeout:
+        AttemptDurationSeconds: 1800  # 30 minutes per attempt
+      ContainerProperties:
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/webhook-sender:latest"
+        Vcpus: 1
+        Memory: 512
+        Command:
+          - node
+          - index.mjs
+        Environment:
+          - Name: ENVIRONMENT
+            Value: "dev"
+          - Name: WEBHOOK_URL
+            Value: "https://webhook.site/2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c2c2c"
+          - Name: DURATION_MINUTES
+            Value: "1"
+          - Name: USER_ID
+            Value: "sample-user"
+          # Pass attempt number to the container
+          - Name: AWS_BATCH_JOB_ATTEMPT
+            Value: "Ref::AWS_BATCH_JOB_ATTEMPT"
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref BatchLogGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: batch-job
+        ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+
+
+Outputs:
+  ComputeEnvironmentName:
+    Description: Batch Compute Environment Name
+    Value: !Ref BatchComputeEnvironmentSpot
+    Export:
+      Name: !Sub '${AWS::StackName}-ComputeEnv'
+
+  JobQueueName:
+    Description: Batch Job Queue Name
+    Value: !Ref BatchJobQueue
+    Export:
+      Name: !Sub '${AWS::StackName}-JobQueue'
+
+  JobDefinitionArn:
+    Description: Job Definition ARN
+    Value: !Ref BatchJobDefinition
+    Export:
+      Name: !Sub '${AWS::StackName}-JobDef'
+
+  LogGroupName:
+    Description: CloudWatch Log Group Name
+    Value: !Ref BatchLogGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-LogGroup'
+
+  SubmitJobCommand:
+    Description: Command to submit a test job
+    Value: !Sub |
+      aws batch submit-job --job-name test-$(date +%s) --job-queue ${BatchJobQueue} --job-definition ${BatchJobDefinition}
+  
+  SubmitJobWithCustomRetry:
+    Description: Command to submit job with custom retry override
+    Value: !Sub |
+      aws batch submit-job \
+        --job-name test-$(date +%s) \
+        --job-queue ${BatchJobQueue} \
+        --job-definition ${BatchJobDefinition} \
+        --retry-strategy attempts=5

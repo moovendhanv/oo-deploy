@@ -1,0 +1,136 @@
+services:
+  oo-compute:
+    image: oocreate/oo-compute:latest
+    pull_policy: always
+    container_name: oo-compute
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=production
+      - PYTHONPATH=/app
+      - CONDA_DEFAULT_ENV=ouroboros
+      - PATH=/opt/conda/envs/ouroboros/bin:/opt/conda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      # System settings
+      - SYSTEM_WORKSPACE=/tmp/workspace
+      - OUTPUT_DIR=/tmp/ouroboros_output
+      - WORKING_DIRECTORY_NAME=${WORKING_DIRECTORY_NAME:-Working_Directory}
+      - LONGTERM_DIRECTORY_NAME=${LONGTERM_DIRECTORY_NAME:-Longterm_Directory}
+      - RECURSION_LIMIT=${RECURSION_LIMIT:-500}
+      # PostgreSQL connection - use Docker service name when in container
+      - POSTGRESQL_HOST=postgresql
+      - POSTGRESQL_PORT=5432
+      - POSTGRESQL_DATABASE=ouroboros_workflows
+      - POSTGRESQL_USERNAME=ouroboros
+      - POSTGRESQL_PASSWORD=${POSTGRESQL_PASSWORD:-ouroboros_secure}
+      # PostgreSQL propagation control (default: true for database integration)
+      - POSTGRESQL_ENABLE_PROPAGATION=${POSTGRESQL_ENABLE_PROPAGATION:-true}
+      - POSTGRESQL_ENABLE_STRATEGY_TRACKING=${POSTGRESQL_ENABLE_STRATEGY_TRACKING:-true}
+      # Workflow database name for compatibility
+      - WORKFLOW_DB_NAME=ouroboros_workflows
+      # Step execution tracking
+      - STEP_EXECUTION_TRACKING_ENABLED=true
+      - STEP_EXECUTION_TIMEOUT=${STEP_EXECUTION_TIMEOUT:-5400}
+      - STEP_EXECUTION_RETRY_COUNT=${STEP_EXECUTION_RETRY_COUNT:-3}
+      - STEP_EXECUTION_PARALLEL_LIMIT=${STEP_EXECUTION_PARALLEL_LIMIT:-5}
+      # Enhanced monitoring for step-level execution
+      - WORKFLOW_MONITORING_INTERVAL=${WORKFLOW_MONITORING_INTERVAL:-10}
+      - STEP_PROGRESS_UPDATE_INTERVAL=${STEP_PROGRESS_UPDATE_INTERVAL:-5}
+      # Rollback capability
+      - STEP_EXECUTION_ROLLBACK_MODE=${STEP_EXECUTION_ROLLBACK_MODE:-false}
+      - LEGACY_WORKFLOW_EXECUTION_ENABLED=${LEGACY_WORKFLOW_EXECUTION_ENABLED:-true}
+      # Performance monitoring
+      - STEP_EXECUTION_METRICS_ENABLED=true
+      - STEP_EXECUTION_SLOW_QUERY_THRESHOLD=5000
+      # API Keys from .env file
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+      - APIFY_TOKEN=${APIFY_TOKEN}
+    volumes:
+      # Mount workspace directory for read-write access
+      - ./workspace:/tmp/workspace
+      # Enhanced logging for step execution
+      - ./logs:/app/logs
+      - ./logs/step-execution:/app/logs/step-execution
+      - ./logs/workflow-execution:/app/logs/workflow-execution
+      # Mount config.ini if you have customizations
+      - ./config.ini:/app/config.ini
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 120s  # Longer start period for database migration
+    networks:
+      - oo-compute-network
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    # Resource limits updated for step execution workload
+    deploy:
+      resources:
+        limits:
+          memory: 6G  # Increased from 4G for step execution overhead
+          cpus: '3.0'  # Increased from 2.0 for parallel step processing
+        reservations:
+          memory: 2G  # Increased from 1G
+          cpus: '1.0'  # Increased from 0.5
+
+  postgresql:
+    image: oocreate/oo-postgresql:latest
+    pull_policy: always
+    container_name: oo-compute-postgresql
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=ouroboros_workflows
+      - POSTGRES_USER=ouroboros
+      - POSTGRES_PASSWORD=${POSTGRESQL_PASSWORD:-ouroboros_secure}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      # PostgreSQL data persistence ONLY - initialization scripts baked into image
+      - postgresql_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - oo-compute-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ouroboros -d ouroboros_workflows"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s  # Increased for initialization scripts
+    # Resource limits for PostgreSQL
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Optional: Add a reverse proxy for production (uncomment if needed)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: oo-compute-nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - oo-compute
+  #   restart: unless-stopped
+  #   networks:
+  #     - oo-compute-network
+
+networks:
+  oo-compute-network:
+    driver: bridge
+
+volumes:
+  postgresql_data:
+    driver: local

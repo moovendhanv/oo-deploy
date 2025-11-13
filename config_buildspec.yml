@@ -1,0 +1,30 @@
+version: 0.2
+phases:
+  pre_build:
+    commands:
+      - echo Deployment started on `date`
+      - echo Reading image details...
+      - cat imageDetail.json
+      - export IMAGE_URI=$(cat imageDetail.json | jq -r '.ImageURI')
+      - export IMAGE_TAG=$(cat imageDetail.json | jq -r '.ImageTag')
+      - echo "Image URI is $IMAGE_URI"
+      - echo "Image Tag is $IMAGE_TAG"
+      - echo "Environment is $ENVIRONMENT"
+      - echo "Resource Prefix is $RESOURCE_PREFIX"
+      - echo "Resource Type is $RESOURCE_TYPE"
+      - echo "AWS Region is $AWS_REGION"
+      - echo "AWS Account ID is $AWS_ACCOUNT_ID"
+      - echo "ECR Repository URI is $ECR_REPOSITORY_URI"
+      - ls -la
+      - ls -la Devops/
+  
+  build:
+    commands:
+      - echo Running deploy.sh script...
+      - chmod +x Devops/deploy.sh
+      - cd Devops
+      - ./deploy.sh
+  
+  post_build:
+    commands:
+      - echo Deployment completed on `date`
