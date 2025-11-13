@@ -28,5 +28,4 @@ phases:
 artifacts:
   files:
     - imageDetail.json
-    - Devops/template.yml
-    - Devops/env/**/*
+    - Devops/*
