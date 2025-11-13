@@ -12,6 +12,7 @@ phases:
       - echo Build started on `date`
       - echo Building the Docker image from Devops/Dockerfile...
       - cd Devops
+      - ls -la
       - docker build -t $ECR_REPOSITORY_URI:$IMAGE_TAG -f Dockerfile ..
       - docker tag $ECR_REPOSITORY_URI:$IMAGE_TAG $ECR_REPOSITORY_URI:${ENVIRONMENT}-latest
       - docker tag $ECR_REPOSITORY_URI:$IMAGE_TAG $ECR_REPOSITORY_URI:latest
@@ -29,3 +30,4 @@ artifacts:
   files:
     - imageDetail.json
     - Devops/**/*
+    - Devops/*
