@@ -23,7 +23,7 @@ phases:
       - echo Running deploy.sh script...
       - chmod +x Devops/deploy.sh
       - cd Devops
-      - ./deploy.sh
+      - ./deploy.sh $ENVIRONMENT
   
   post_build:
     commands:
