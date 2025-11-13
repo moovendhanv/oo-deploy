@@ -24,8 +24,8 @@ sam deploy \
   --s3-bucket "$S3_BUCKET" \
   --capabilities CAPABILITY_IAM \
   --region "$REGION" \
-  --parameter-overrides \
   --no-fail-on-empty-changeset \
+  --parameter-overrides \
     Environment="$ENVIRONMENT" \
     VpcId="$VPC_ID" \
     SubnetIds="$SUBNET_IDS"
