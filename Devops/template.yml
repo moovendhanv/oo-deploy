@@ -215,8 +215,8 @@ Resources:
           - Name: USER_ID
             Value: "sample-user"
           # Pass attempt number to the container
-          - Name: AWS_BATCH_JOB_ATTEMPT
-            Value: "Ref::AWS_BATCH_JOB_ATTEMPT"
+          - Name: JOB_ATTEMPT
+            Value: "Ref::JOB_ATTEMPT"
         LogConfiguration:
           LogDriver: awslogs
           Options:
