@@ -25,8 +25,10 @@ sam deploy \
   --capabilities CAPABILITY_IAM \
   --region "$REGION" \
   --parameter-overrides \
+  --no-fail-on-empty-changeset \
     Environment="$ENVIRONMENT" \
     VpcId="$VPC_ID" \
     SubnetIds="$SUBNET_IDS"
+
 
 echo "Deployment complete!"
