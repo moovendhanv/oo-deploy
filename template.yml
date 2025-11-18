@@ -138,14 +138,14 @@ Resources:
   BatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/batch/spot-jobs-${Environment}'
+      LogGroupName: !Sub '/aws/batch/workflow-${Environment}-logs'
       RetentionInDays: 7
 
   # Batch Compute Environment with SPOT
   BatchComputeEnvironmentSpot:
     Type: AWS::Batch::ComputeEnvironment
     Properties:
-      ComputeEnvironmentName: !Sub 'spot-${Environment}-env'
+      ComputeEnvironmentName: !Sub 'workflow-${Environment}-env'
       Type: MANAGED
       State: ENABLED
       ServiceRole: !GetAtt BatchServiceRole.Arn
@@ -170,14 +170,14 @@ Resources:
         InstanceRole: !GetAtt EcsInstanceProfile.Arn
         SpotIamFleetRole: !GetAtt SpotFleetRole.Arn
         Tags:
-          Name: !Sub 'batch-spot-${Environment}'
+          Name: !Sub 'workflow-${Environment}'
           Environment: !Ref Environment
 
   # Job Queue
   BatchJobQueue:
     Type: AWS::Batch::JobQueue
     Properties:
-      JobQueueName: !Sub 'spot-${Environment}-queue'
+      JobQueueName: !Sub 'workflow-${Environment}-queue'
       State: ENABLED
       Priority: 1
       ComputeEnvironmentOrder:
@@ -188,7 +188,7 @@ Resources:
   BatchJobDefinition:
     Type: AWS::Batch::JobDefinition
     Properties:
-      JobDefinitionName: !Sub 'sample-spot-job-${Environment}'
+      JobDefinitionName: !Sub 'workflow-${Environment}-job'
       Type: container
       PlatformCapabilities:
         - EC2
@@ -214,6 +214,8 @@ Resources:
             Value: "1"
           - Name: USER_ID
             Value: "sample-user"
+          - Name: PAYLOAD
+            Value: "{}"
           # Pass attempt number to the container
           - Name: AWS_BATCH_JOB_ATTEMPT
             Value: "Ref::AWS_BATCH_JOB_ATTEMPT"
