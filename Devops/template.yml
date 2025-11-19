@@ -278,7 +278,7 @@ Resources:
         LogConfiguration:
           LogDriver: awslogs
           Options:
-            awslogs-group: !Sub '/batch/${ResourcePrefix}-${Environment}-${ResourceType}-logs'
+            awslogs-group: '/batch/batch-job-logs' #TODO: update with prefix
             awslogs-region: !Ref AWS::Region
             awslogs-stream-prefix: batch-job
         ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
