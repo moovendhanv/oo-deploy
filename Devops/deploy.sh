@@ -35,9 +35,7 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 S3_BUCKET="${RESOURCE_PREFIX}-${ENVIRONMENT}-backend-artifact-bucket"
 
-STACK_NAME="${RESOURCE_PREFIX}-${ENVIRONMENT}-${RESOURCE_TYPE_COMPUTE}-stack"
-MAX_RETRY_ATTEMPTS=10
-TIMOUT_DURATION_SECONDS=28800
+STACK_NAME="${RESOURCE_PREFIX}-${ENVIRONMENT}-${RESOURCE_TYPE}-stack"
 
 # Build
 sam build
@@ -56,6 +54,13 @@ sam deploy \
     ResourceType="$RESOURCE_TYPE" \
     RedisEndpoint="$REDIS_ENDPOINT" \
     MaxRetryAttempts="$MAX_RETRY_ATTEMPTS" \
-    TimoutDurationSeconds="$TIMOUT_DURATION_SECONDS" 
+    TimeoutDurationSeconds="$TIMEOUT_DURATION_SECONDS" \
+    BidPercentage="$BID_PERCENTAGE" \
+    MinvCpus="$MIN_VCPUS" \
+    MaxvCpus="$MAX_VCPUS" \
+    DesiredvCpus="$DESIRED_VCPUS" \
+    JobVcpus="$JOB_VCPUS" \
+    JobMemory="$JOB_MEMORY"
+
 
 echo "Deployment complete!"

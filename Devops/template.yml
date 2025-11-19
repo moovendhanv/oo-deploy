@@ -41,12 +41,51 @@ Parameters:
     Type: String
     Description: Redis endpoint
 
-  TimoutDurationSeconds:
+  TimeoutDurationSeconds:
     Type: Number
     Default: 28800
     MinValue: 60
     MaxValue: 86400
     Description: Timeout duration in seconds
+
+  # Compute Environment Parameters
+  BidPercentage:
+    Type: Number
+    Default: 100
+    MinValue: 0
+    MaxValue: 100 
+    Description: Maximum percentage of On-Demand price to bid for Spot instances
+
+  MinvCpus:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    Description: Minimum number of vCPUs in the compute environment
+
+  MaxvCpus:
+    Type: Number
+    Default: 4
+    MinValue: 0
+    Description: Maximum number of vCPUs in the compute environment
+
+  DesiredvCpus:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    Description: Desired number of vCPUs in the compute environment
+
+  # Container Parameters
+  JobVcpus:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    Description: Number of vCPUs for the job container
+
+  JobMemory:
+    Type: Number
+    Default: 512
+    MinValue: 128
+    Description: Memory (in MiB) for the job container
 
 Conditions:
   HasVpcConfig: !Not [!Equals [!Ref VpcId, '']]
@@ -100,8 +139,8 @@ Resources:
   # IAM Role for EC2 Instances
   EcsInstanceRole:
     Type: AWS::IAM::Role
-    RoleName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
     Properties:
+      RoleName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -172,10 +211,10 @@ Resources:
       ComputeResources:
         Type: SPOT
         AllocationStrategy: SPOT_CAPACITY_OPTIMIZED
-        BidPercentage: 100
-        MinvCpus: 0
-        MaxvCpus: 4
-        DesiredvCpus: 0
+        BidPercentage: !Ref BidPercentage
+        MinvCpus: !Ref MinvCpus
+        MaxvCpus: !Ref MaxvCpus
+        DesiredvCpus: !Ref DesiredvCpus
         InstanceTypes:
           - m5.large
           - m5.xlarge
@@ -217,11 +256,11 @@ Resources:
         Attempts: !Ref MaxRetryAttempts
       # TIMEOUT CONFIGURATION
       Timeout:
-        AttemptDurationSeconds: !Ref TimoutDurationSeconds
+        AttemptDurationSeconds: !Ref TimeoutDurationSeconds
       ContainerProperties:
         Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/webhook-sender:latest"
-        Vcpus: 1
-        Memory: 512
+        Vcpus: !Ref JobVcpus
+        Memory: !Ref JobMemory
         Command:
           - node
           - index.mjs
