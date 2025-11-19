@@ -194,13 +194,13 @@ Resources:
           Value: !Ref Environment
 
   # CloudWatch Log Group
-  BatchLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/batch/${ResourcePrefix}-${Environment}-${ResourceType}-logs-${AWS::StackName}'
-      RetentionInDays: 60
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
+  # BatchLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub '/aws/batch/${ResourcePrefix}-${Environment}-${ResourceType}-logs'
+  #     RetentionInDays: 60
+  #   DeletionPolicy: Delete
+  #   UpdateReplacePolicy: Delete
 
   # Batch Compute Environment with SPOT
   BatchComputeEnvironmentSpot:
@@ -278,7 +278,7 @@ Resources:
         LogConfiguration:
           LogDriver: awslogs
           Options:
-            awslogs-group: !Ref BatchLogGroup
+            awslogs-group: !Sub '/aws/batch/${ResourcePrefix}-${Environment}-${ResourceType}'
             awslogs-region: !Ref AWS::Region
             awslogs-stream-prefix: batch-job
         ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
@@ -303,11 +303,11 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-JobDef'
 
-  LogGroupName:
-    Description: CloudWatch Log Group Name
-    Value: !Ref BatchLogGroup
-    Export:
-      Name: !Sub '${AWS::StackName}-LogGroup'
+  # LogGroupName:
+  #   Description: CloudWatch Log Group Name
+  #   Value: !Ref BatchLogGroup
+  #   Export:
+  #     Name: !Sub '${AWS::StackName}-LogGroup'
 
   SubmitJobCommand:
     Description: Command to submit a test job
