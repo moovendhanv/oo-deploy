@@ -24,11 +24,20 @@ get_stack_output_value() {
     return 0
 }
 
-export VPC_ID=$(get_stack_output_value "${RESOURCE_PREFIX}-${ENVIRONMENT}-backend-network-stack" "VPCId")
-export SUBNET_IDS=$(get_stack_output_value "${RESOURCE_PREFIX}-${ENVIRONMENT}-backend-network-stack" "PrivateSubnet1Id")
-export SUBNET_IDS+=" "$(get_stack_output_value "${RESOURCE_PREFIX}-${ENVIRONMENT}-backend-network-stack" "PrivateSubnet2Id")
-export WEBSOCKET_URL=$(get_stack_output_value "${RESOURCE_PREFIX}-${ENVIRONMENT}-websocket" "LoadBalancerURL")
+export VPC_ID=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "VPCId")
+export SUBNET_IDS=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "PrivateSubnet1Id")
+export SUBNET_IDS+=" "$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "PrivateSubnet2Id")
+export WEBSOCKET_URL=$(get_stack_output_value "oo-co-${ENVIRONMENT}-websocket" "LoadBalancerURL")
 export REDIS_ENDPOINT=$(get_stack_output_value "oo-redis-${ENVIRONMENT}-resources" "RedisConnectionString")
+
+echo "AWS_REGION: $AWS_REGION"
+echo "VPC_ID: $VPC_ID"
+echo "SUBNET_IDS: $SUBNET_IDS"
+echo "WEBSOCKET_URL: $WEBSOCKET_URL"
+echo "REDIS_ENDPOINT: $REDIS_ENDPOINT"
+
+sleep 100
+
 
 # Get account ID for S3 bucket
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
