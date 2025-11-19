@@ -56,6 +56,7 @@ sam deploy \
     Environment="$ENVIRONMENT" \
     VpcId="$VPC_ID" \
     SubnetIds="$SUBNET_IDS" \
+    ImageUri="$IMAGE_URI" \
     ResourcePrefix="$RESOURCE_PREFIX" \
     ResourceType="$RESOURCE_TYPE" \
     RedisEndpoint="$REDIS_ENDPOINT" \
