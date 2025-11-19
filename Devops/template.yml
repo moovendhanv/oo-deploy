@@ -157,6 +157,7 @@ Resources:
   EcsInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
+      InstanceProfileName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
       Roles:
         - !Ref EcsInstanceRole
 
