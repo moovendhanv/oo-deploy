@@ -4,8 +4,6 @@ set -e
 
 ENVIRONMENT=$1
 
-source ./env/$ENVIRONMENT.env.sh
-
 get_stack_output_value() {
     local stack_name=$1
     local output_key=$2
@@ -37,9 +35,9 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 S3_BUCKET="${RESOURCE_PREFIX}-${ENVIRONMENT}-backend-artifact-bucket"
 
-echo "Deploying stack: $STACK_NAME"
-echo "Region: $AWS_REGION"
-echo "Environment: $ENVIRONMENT"
+STACK_NAME="${RESOURCE_PREFIX}-${ENVIRONMENT}-${RESOURCE_TYPE_COMPUTE}-stack"
+MAX_RETRY_ATTEMPTS=10
+TIMOUT_DURATION_SECONDS=28800
 
 # Build
 sam build
@@ -56,6 +54,8 @@ sam deploy \
     SubnetIds="$SUBNET_IDS" \
     ResourcePrefix="$RESOURCE_PREFIX" \
     ResourceType="$RESOURCE_TYPE" \
-    RedisEndpoint="$REDIS_ENDPOINT" 
+    RedisEndpoint="$REDIS_ENDPOINT" \
+    MaxRetryAttempts="$MAX_RETRY_ATTEMPTS" \
+    TimoutDurationSeconds="$TIMOUT_DURATION_SECONDS" 
 
 echo "Deployment complete!"
