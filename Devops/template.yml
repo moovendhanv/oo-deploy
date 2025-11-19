@@ -198,8 +198,10 @@ Resources:
   BatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/batch/workflow-${Environment}-logs'
+      LogGroupName: !Sub '/aws/batch/${ResourcePrefix}-${Environment}-${ResourceType}-logs'
       RetentionInDays: 7
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
 
   # Batch Compute Environment with SPOT
   BatchComputeEnvironmentSpot:

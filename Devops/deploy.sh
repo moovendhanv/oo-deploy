@@ -36,9 +36,6 @@ echo "SUBNET_IDS: $SUBNET_IDS"
 echo "WEBSOCKET_URL: $WEBSOCKET_URL"
 echo "REDIS_ENDPOINT: $REDIS_ENDPOINT"
 
-sleep 100
-
-
 # Get account ID for S3 bucket
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
