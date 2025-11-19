@@ -197,7 +197,7 @@ Resources:
   BatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/batch/${ResourcePrefix}-${Environment}-${ResourceType}-logs'
+      LogGroupName: !Sub '/aws/batch/${ResourcePrefix}-${Environment}-${ResourceType}-logs-${AWS::StackName}'
       RetentionInDays: 60
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
