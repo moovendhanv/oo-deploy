@@ -81,6 +81,7 @@ Resources:
   # IAM Role for EC2 Instances
   EcsInstanceRole:
     Type: AWS::IAM::Role
+    InstanceProfileName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
