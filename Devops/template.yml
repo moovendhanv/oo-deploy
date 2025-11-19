@@ -29,6 +29,25 @@ Parameters:
     MaxValue: 10
     Description: Maximum number of retry attempts for failed jobs
 
+  ResourcePrefix:
+    Type: String
+    Description: Prefix for resource names
+
+  ResourceType:
+    Type: String
+    Description: Type of resource
+
+  RedisEndpoint:
+    Type: String
+    Description: Redis endpoint
+
+  TimoutDurationSeconds:
+    Type: Number
+    Default: 28800
+    MinValue: 60
+    MaxValue: 86400
+    Description: Timeout duration in seconds
+
 Conditions:
   HasVpcConfig: !Not [!Equals [!Ref VpcId, '']]
 
@@ -81,7 +100,7 @@ Resources:
   # IAM Role for EC2 Instances
   EcsInstanceRole:
     Type: AWS::IAM::Role
-    InstanceProfileName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
+    RoleName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -146,7 +165,7 @@ Resources:
   BatchComputeEnvironmentSpot:
     Type: AWS::Batch::ComputeEnvironment
     Properties:
-      ComputeEnvironmentName: !Sub 'workflow-${Environment}-env'
+      ComputeEnvironmentName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-env'
       Type: MANAGED
       State: ENABLED
       ServiceRole: !GetAtt BatchServiceRole.Arn
@@ -171,14 +190,14 @@ Resources:
         InstanceRole: !GetAtt EcsInstanceProfile.Arn
         SpotIamFleetRole: !GetAtt SpotFleetRole.Arn
         Tags:
-          Name: !Sub 'workflow-${Environment}'
+          Name: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}'
           Environment: !Ref Environment
 
   # Job Queue
   BatchJobQueue:
     Type: AWS::Batch::JobQueue
     Properties:
-      JobQueueName: !Sub 'workflow-${Environment}-queue'
+      JobQueueName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-queue'
       State: ENABLED
       Priority: 1
       ComputeEnvironmentOrder:
@@ -189,7 +208,7 @@ Resources:
   BatchJobDefinition:
     Type: AWS::Batch::JobDefinition
     Properties:
-      JobDefinitionName: !Sub 'workflow-${Environment}-job'
+      JobDefinitionName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-job'
       Type: container
       PlatformCapabilities:
         - EC2
@@ -198,7 +217,7 @@ Resources:
         Attempts: !Ref MaxRetryAttempts
       # TIMEOUT CONFIGURATION
       Timeout:
-        AttemptDurationSeconds: 1800  # 30 minutes per attempt
+        AttemptDurationSeconds: !Ref TimoutDurationSeconds
       ContainerProperties:
         Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/webhook-sender:latest"
         Vcpus: 1
@@ -208,18 +227,13 @@ Resources:
           - index.mjs
         Environment:
           - Name: ENVIRONMENT
-            Value: "dev"
-          - Name: WEBHOOK_URL
-            Value: "https://webhook.site/2c2c2c2c-2c2c-2c2c-2c2c-2c2c2c2c2c2c"
-          - Name: DURATION_MINUTES
-            Value: "1"
+            Value: !Ref Environment
+          - Name: REDIS_ENDPOINT
+            Value: !Ref RedisEndpoint
           - Name: USER_ID
             Value: "sample-user"
           - Name: PAYLOAD
             Value: "{}"
-          # Pass attempt number to the container
-          - Name: AWS_BATCH_JOB_ATTEMPT
-            Value: "Ref::AWS_BATCH_JOB_ATTEMPT"
         LogConfiguration:
           LogDriver: awslogs
           Options:
