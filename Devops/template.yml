@@ -140,7 +140,6 @@ Resources:
   EcsInstanceRole:
     Type: AWS::IAM::Role
     Properties:
-      # RoleName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -206,7 +205,6 @@ Resources:
   # Batch Compute Environment with SPOT
   BatchComputeEnvironmentSpot:
     Type: AWS::Batch::ComputeEnvironment
-    DependsOn: BatchLogGroup
     Properties:
       ComputeEnvironmentName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-env'
       Type: MANAGED
@@ -239,7 +237,6 @@ Resources:
   # Job Queue
   BatchJobQueue:
     Type: AWS::Batch::JobQueue
-    DependsOn: BatchLogGroup
     Properties:
       JobQueueName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-queue'
       State: ENABLED
@@ -251,7 +248,6 @@ Resources:
   # Job Definition with Retry Strategy
   BatchJobDefinition:
     Type: AWS::Batch::JobDefinition
-    DependsOn: BatchLogGroup
     Properties:
       JobDefinitionName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-job'
       Type: container
