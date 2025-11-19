@@ -199,13 +199,14 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/batch/${ResourcePrefix}-${Environment}-${ResourceType}-logs'
-      RetentionInDays: 7
+      RetentionInDays: 60
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
 
   # Batch Compute Environment with SPOT
   BatchComputeEnvironmentSpot:
     Type: AWS::Batch::ComputeEnvironment
+    DependsOn: BatchLogGroup
     Properties:
       ComputeEnvironmentName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-env'
       Type: MANAGED
@@ -238,6 +239,7 @@ Resources:
   # Job Queue
   BatchJobQueue:
     Type: AWS::Batch::JobQueue
+    DependsOn: BatchLogGroup
     Properties:
       JobQueueName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-queue'
       State: ENABLED
@@ -249,6 +251,7 @@ Resources:
   # Job Definition with Retry Strategy
   BatchJobDefinition:
     Type: AWS::Batch::JobDefinition
+    DependsOn: BatchLogGroup
     Properties:
       JobDefinitionName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-job'
       Type: container
