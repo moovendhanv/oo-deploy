@@ -140,7 +140,7 @@ Resources:
   EcsInstanceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
+      # RoleName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
