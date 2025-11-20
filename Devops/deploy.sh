@@ -1,32 +1,71 @@
 #!/bin/bash
-
 set -e
 
 ENVIRONMENT=$1
 
-source ./env/$ENVIRONMENT.env.sh
+get_stack_output_value() {
+    local stack_name=$1
+    local output_key=$2
+    local region=$AWS_REGION
+    
+    local output_value=$(aws cloudformation describe-stacks \
+        --stack-name "$stack_name" \
+        --region "$region" \
+        --query "Stacks[0].Outputs[?OutputKey=='${output_key}'].OutputValue" \
+        --output text 2>/dev/null)
+    
+    if [[ -z "$output_value" || "$output_value" == "None" ]]; then
+        echo "Output key '$output_key' not found in stack '$stack_name'"
+        return 1
+    fi
+    
+    echo "$output_value"
+    return 0
+}
+
+export VPC_ID=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "VPCId")
+export SUBNET_ID1=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "PublicSubnet1Id")
+export SUBNET_ID2=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "PublicSubnet2Id")
+export WEBSOCKET_URL=$(get_stack_output_value "oo-co-${ENVIRONMENT}-websocket" "LoadBalancerURL")
+export REDIS_ENDPOINT=$(get_stack_output_value "oo-redis-${ENVIRONMENT}-resources" "RedisConnectionString")
+
+echo "AWS_REGION: $AWS_REGION"
+echo "VPC_ID: $VPC_ID"
+echo "SUBNET_ID1: $SUBNET_ID1"
+echo "SUBNET_ID2: $SUBNET_ID2"
+echo "WEBSOCKET_URL: $WEBSOCKET_URL"
+echo "REDIS_ENDPOINT: $REDIS_ENDPOINT"
 
 # Get account ID for S3 bucket
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-S3_BUCKET="oo-co-$ENVIRONMENT-backend-artifact-bucket"
-
-echo "Deploying stack: $STACK_NAME"
-echo "Region: $REGION"
-echo "Environment: $ENVIRONMENT"
+S3_BUCKET="${RESOURCE_PREFIX}-${ENVIRONMENT}-backend-artifact-bucket"
+STACK_NAME="${RESOURCE_PREFIX}-${ENVIRONMENT}-${RESOURCE_TYPE}-stack"
 
 # Build
 sam build
 
 # Deploy
 sam deploy \
-  --stack-name "$STACK_NAME" \
-  --s3-bucket "$S3_BUCKET" \
-  --capabilities CAPABILITY_IAM \
-  --region "$REGION" \
-  --parameter-overrides \
-    Environment="$ENVIRONMENT" \
-    VpcId="$VPC_ID" \
-    SubnetIds="$SUBNET_IDS"
+    --stack-name "$STACK_NAME" \
+    --s3-bucket "$S3_BUCKET" \
+    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+    --region "$AWS_REGION" \
+    --parameter-overrides \
+        Environment="$ENVIRONMENT" \
+        VpcId="$VPC_ID" \
+        SubnetId1="$SUBNET_ID1" \
+        SubnetId2="$SUBNET_ID2" \
+        ImageUri="$IMAGE_URI" \
+        ResourcePrefix="$RESOURCE_PREFIX" \
+        ResourceType="$RESOURCE_TYPE" \
+        RedisEndpoint="$REDIS_ENDPOINT" \
+        MaxRetryAttempts="$MAX_RETRY_ATTEMPTS" \
+        TimeoutDurationSeconds="$TIMEOUT_DURATION" \
+        BidPercentage="$BID_PERCENTAGE" \
+        MinvCpus="$MIN_VCPUS" \
+        MaxvCpus="$MAX_VCPUS" \
+        DesiredvCpus="$DESIRED_VCPUS" \
+        JobVcpus="$JOB_VCPUS" \
+        JobMemory="$JOB_MEMORY"
 
 echo "Deployment complete!"
