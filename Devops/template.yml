@@ -353,3 +353,9 @@ Outputs:
     Value: !Ref BatchJobDefinition
     Export:
       Name: !Sub '${AWS::StackName}-JobDefinitionArn'
+
+  BatchJobQueue:
+    Description: BatchJobQueue
+    Value: !Ref BatchJobQueue
+    Export:
+      Name: !Sub '${AWS::StackName}-BatchJobQueue'
