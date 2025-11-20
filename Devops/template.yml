@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'AWS Batch with Spot Instances and Retry Configuration - SAM Template'
+Description: 'AWS Batch Infrastructure with proper resource ordering'
 
 Parameters:
   VpcId:
@@ -8,9 +8,14 @@ Parameters:
     Description: VPC ID for Batch compute environment
     Default: ''
   
-  SubnetIds:
-    Type: CommaDelimitedList
-    Description: Comma-separated list of Subnet IDs
+  SubnetId1:
+    Type: String
+    Description: Subnet ID 1
+    Default: ''
+  
+  SubnetId2:
+    Type: String
+    Description: Subnet ID 2
     Default: ''
   
   Environment:
@@ -48,44 +53,37 @@ Parameters:
     MaxValue: 86400
     Description: Timeout duration in seconds
 
-  # Compute Environment Parameters
   BidPercentage:
     Type: Number
     Default: 100
     MinValue: 0
     MaxValue: 100 
-    Description: Maximum percentage of On-Demand price to bid for Spot instances
+    Description: Spot bid percentage
 
   MinvCpus:
     Type: Number
     Default: 0
     MinValue: 0
-    Description: Minimum number of vCPUs in the compute environment
 
   MaxvCpus:
     Type: Number
     Default: 4
     MinValue: 0
-    Description: Maximum number of vCPUs in the compute environment
 
   DesiredvCpus:
     Type: Number
     Default: 0
     MinValue: 0
-    Description: Desired number of vCPUs in the compute environment
 
-  # Container Parameters
   JobVcpus:
     Type: Number
     Default: 1
     MinValue: 1
-    Description: Number of vCPUs for the job container
 
   JobMemory:
     Type: Number
     Default: 512
     MinValue: 128
-    Description: Memory (in MiB) for the job container
 
   ImageUri:
     Type: String
@@ -95,10 +93,23 @@ Conditions:
   HasVpcConfig: !Not [!Equals [!Ref VpcId, '']]
 
 Resources:
-  # IAM Role for Batch Service
+
+  # ==========================================
+  # STEP 1: CloudWatch Log Group (No dependencies)
+  # ==========================================
+  BatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/batch/${ResourcePrefix}-${Environment}-${ResourceType}'
+      RetentionInDays: 7
+
+  # ==========================================
+  # STEP 2: IAM Roles (No dependencies)
+  # ==========================================
   BatchServiceRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-batch-service-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -112,10 +123,10 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # IAM Role for ECS Task Execution
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-ecs-task-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -140,10 +151,10 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # IAM Role for EC2 Instances
   EcsInstanceRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -157,33 +168,10 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  EcsInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      InstanceProfileName: !Sub "${ResourcePrefix}-${Environment}-${ResourceType}-ecs-instance-profile"
-      Roles:
-        - !Ref EcsInstanceRole
-
-  # Security Group
-  BatchSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Condition: HasVpcConfig
-    Properties:
-      GroupDescription: !Sub 'Security group for Batch ${Environment}'
-      VpcId: !Ref VpcId
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: !Sub 'batch-spot-sg-${Environment}'
-        - Key: Environment
-          Value: !Ref Environment
-
-  # Spot Fleet Role
   SpotFleetRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-spot-fleet-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -197,16 +185,47 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # CloudWatch Log Group
-  BatchLogGroup:
-    Type: AWS::Logs::LogGroup
+  # ==========================================
+  # STEP 3: Instance Profile (Depends on EcsInstanceRole)
+  # ==========================================
+  EcsInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    DependsOn: EcsInstanceRole
     Properties:
-      LogGroupName: !Sub '/batch/${ResourcePrefix}-${Environment}-${ResourceType}-logs'
-      RetentionInDays: 60
+      InstanceProfileName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-instance-profile'
+      Roles:
+        - !Ref EcsInstanceRole
 
-  # Batch Compute Environment with SPOT
+  # ==========================================
+  # STEP 4: Security Group (Depends on VPC)
+  # ==========================================
+  BatchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: HasVpcConfig
+    Properties:
+      GroupName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-batch-sg'
+      GroupDescription: !Sub 'Security group for Batch ${Environment}'
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${ResourcePrefix}-${Environment}-batch-sg'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ==========================================
+  # STEP 5: Batch job
+  # ==========================================
+
+  # Batch Compute Environment
   BatchComputeEnvironmentSpot:
     Type: AWS::Batch::ComputeEnvironment
+    DependsOn:
+      - BatchServiceRole
+      - SpotFleetRole
+      - EcsInstanceProfile
     Properties:
       ComputeEnvironmentName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-env'
       Type: MANAGED
@@ -220,11 +239,12 @@ Resources:
         MaxvCpus: !Ref MaxvCpus
         DesiredvCpus: !Ref DesiredvCpus
         InstanceTypes:
-          - m5.large
-          - m5.xlarge
+          - optimal
         Subnets: !If
           - HasVpcConfig
-          - !Ref SubnetIds
+          - 
+            - !Ref SubnetId1
+            - !Ref SubnetId2
           - !Ref AWS::NoValue
         SecurityGroupIds: !If
           - HasVpcConfig
@@ -236,7 +256,7 @@ Resources:
           Name: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}'
           Environment: !Ref Environment
 
-  # Job Queue
+  # Batch Job Queue
   BatchJobQueue:
     Type: AWS::Batch::JobQueue
     Properties:
@@ -247,11 +267,13 @@ Resources:
         - Order: 1
           ComputeEnvironment: !Ref BatchComputeEnvironmentSpot
 
-  # Job Definition with Retry Strategy
   BatchJobDefinition:
     Type: AWS::Batch::JobDefinition
+    DependsOn:
+      - EcsTaskExecutionRole
+      - BatchLogGroup
     Properties:
-      JobDefinitionName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-job'
+      JobDefinitionName: !Sub '${ResourcePrefix}-${Environment}-${ResourceType}-jobdef'
       Type: container
       PlatformCapabilities:
         - EC2
@@ -283,42 +305,51 @@ Resources:
             awslogs-stream-prefix: batch-job
         ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
 
-
 Outputs:
-  ComputeEnvironmentName:
-    Description: Batch Compute Environment Name
-    Value: !Ref BatchComputeEnvironmentSpot
+  BatchServiceRoleArn:
+    Description: Batch Service Role ARN
+    Value: !GetAtt BatchServiceRole.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-ComputeEnv'
+      Name: !Sub '${AWS::StackName}-BatchServiceRoleArn'
 
-  JobQueueName:
-    Description: Batch Job Queue Name
-    Value: !Ref BatchJobQueue
+  EcsTaskExecutionRoleArn:
+    Description: ECS Task Execution Role ARN
+    Value: !GetAtt EcsTaskExecutionRole.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-JobQueue'
+      Name: !Sub '${AWS::StackName}-EcsTaskExecutionRoleArn'
 
-  JobDefinitionArn:
-    Description: Job Definition ARN
-    Value: !Ref BatchJobDefinition
+  EcsInstanceRoleArn:
+    Description: ECS Instance Role ARN
+    Value: !GetAtt EcsInstanceRole.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-JobDef'
+      Name: !Sub '${AWS::StackName}-EcsInstanceRoleArn'
+
+  EcsInstanceProfileArn:
+    Description: ECS Instance Profile ARN
+    Value: !GetAtt EcsInstanceProfile.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-EcsInstanceProfileArn'
+
+  SpotFleetRoleArn:
+    Description: Spot Fleet Role ARN
+    Value: !GetAtt SpotFleetRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-SpotFleetRoleArn'
+
+  BatchSecurityGroupId:
+    Description: Batch Security Group ID
+    Value: !If [HasVpcConfig, !Ref BatchSecurityGroup, '']
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityGroupId'
 
   LogGroupName:
     Description: CloudWatch Log Group Name
     Value: !Ref BatchLogGroup
     Export:
-      Name: !Sub '${AWS::StackName}-LogGroup'
+      Name: !Sub '${AWS::StackName}-LogGroupName'
 
-  SubmitJobCommand:
-    Description: Command to submit a test job
-    Value: !Sub |
-      aws batch submit-job --job-name test-$(date +%s) --job-queue ${BatchJobQueue} --job-definition ${BatchJobDefinition}
-  
-  SubmitJobWithCustomRetry:
-    Description: Command to submit job with custom retry override
-    Value: !Sub |
-      aws batch submit-job \
-        --job-name test-$(date +%s) \
-        --job-queue ${BatchJobQueue} \
-        --job-definition ${BatchJobDefinition} \
-        --retry-strategy attempts=5
+  JobDefinitionArn:
+    Description: Batch Job Definition ARN
+    Value: !Ref BatchJobDefinition
+    Export:
+      Name: !Sub '${AWS::StackName}-JobDefinitionArn'
