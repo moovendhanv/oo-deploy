@@ -26,7 +26,7 @@ get_stack_output_value() {
 
 export VPC_ID=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "VPCId")
 export SUBNET_IDS=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "PrivateSubnet1Id")
-export SUBNET_IDS+=" "$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "PrivateSubnet2Id")
+export SUBNET_IDS+=","$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "PrivateSubnet2Id")
 export WEBSOCKET_URL=$(get_stack_output_value "oo-co-${ENVIRONMENT}-websocket" "LoadBalancerURL")
 export REDIS_ENDPOINT=$(get_stack_output_value "oo-redis-${ENVIRONMENT}-resources" "RedisConnectionString")
 
@@ -70,4 +70,4 @@ sam deploy \
     JobMemory="$JOB_MEMORY"
 
 
-echo "Deployment complete!"
+echo "Deployment complete!" 
