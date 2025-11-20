@@ -1,68 +1,71 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -e
-# Accept the environment argument
-arg=$1
-# Source the environment variables from the given file
-source ../../../env/$arg.env.sh
 
-required_vars=("CODESTAR_CONNECTION_ARN" "RESOURCE_TYPE_COMPUTE" "RESOURCE_PREFIX" "GITHUB_COMPUTE_REPO" "GITHUB_BRANCH" "GITHUB_OWNER" "REGION" "ENVIRONMENT" "SECRET_NAME" "PIPELINE_SECRET_NAME" "VPC_ID" "SUBNET_IDS")
+ENVIRONMENT=$1
 
-for var in "${required_vars[@]}"; do
-  if [ -z "${!var}" ]; then
-    echo "ERROR: $var is not set. Please check your $ENV_FILE file."
-    exit 1
-  fi
-done
-echo "All required environment variables are set."
+get_stack_output_value() {
+    local stack_name=$1
+    local output_key=$2
+    local region=$AWS_REGION
+    
+    local output_value=$(aws cloudformation describe-stacks \
+        --stack-name "$stack_name" \
+        --region "$region" \
+        --query "Stacks[0].Outputs[?OutputKey=='${output_key}'].OutputValue" \
+        --output text 2>/dev/null)
+    
+    if [[ -z "$output_value" || "$output_value" == "None" ]]; then
+        echo "Output key '$output_key' not found in stack '$stack_name'"
+        return 1
+    fi
+    
+    echo "$output_value"
+    return 0
+}
 
-ENVIRONMENT=$arg
-echo "ENVIRONMENT=$ENVIRONMENT"
-echo "REGION=$REGION"
-echo "RESOURCE_PREFIX=$RESOURCE_PREFIX"
-echo "GITHUBBRANCH=$GITHUB_BRANCH"
-echo "GITHUBOWNER=$GITHUB_OWNER"
-echo "GITHUBCOMPUTEREPO=$GITHUB_COMPUTE_REPO"
-echo "RESOURCETYPE3=$RESOURCE_TYPE_COMPUTE"
-echo "CODESTARCONNECTIONARN=$CODESTAR_CONNECTION_ARN"
-echo "SECRETNAME=$SECRET_NAME"
-echo "PIPELINESECRETNAME=$PIPELINE_SECRET_NAME"
+export VPC_ID=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "VPCId")
+export SUBNET_ID1=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "PublicSubnet1Id")
+export SUBNET_ID2=$(get_stack_output_value "oo-co-${ENVIRONMENT}-backend-network-stack" "PublicSubnet2Id")
+export WEBSOCKET_URL=$(get_stack_output_value "oo-co-${ENVIRONMENT}-websocket" "LoadBalancerURL")
+export REDIS_ENDPOINT=$(get_stack_output_value "oo-redis-${ENVIRONMENT}-resources" "RedisConnectionString")
 
-ARTIFACT_BUCKET="${RESOURCE_PREFIX}-${ENVIRONMENT}-${RESOURCE_TYPE_COMPUTE}-artifact-bucket"
+echo "AWS_REGION: $AWS_REGION"
+echo "VPC_ID: $VPC_ID"
+echo "SUBNET_ID1: $SUBNET_ID1"
+echo "SUBNET_ID2: $SUBNET_ID2"
+echo "WEBSOCKET_URL: $WEBSOCKET_URL"
+echo "REDIS_ENDPOINT: $REDIS_ENDPOINT"
 
-echo "Checking if artifact bucket $ARTIFACT_BUCKET exists..."
-BUCKET_EXISTS="false"
-if aws s3api head-bucket --bucket "$ARTIFACT_BUCKET" 2>/dev/null; then
-  echo "Bucket $ARTIFACT_BUCKET already exists."
-  BUCKET_EXISTS="true"
-else
-  echo "Bucket $ARTIFACT_BUCKET does not exist. CloudFormation will create it."
-fi
+# Get account ID for S3 bucket
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+S3_BUCKET="${RESOURCE_PREFIX}-${ENVIRONMENT}-backend-artifact-bucket"
+STACK_NAME="${RESOURCE_PREFIX}-${ENVIRONMENT}-${RESOURCE_TYPE}-stack"
 
+# Build
+sam build
+
+# Deploy
 sam deploy \
-  -t pipeline.yaml \
-  --stack-name "${RESOURCE_PREFIX}-${ENVIRONMENT}-${RESOURCE_TYPE_COMPUTE}-pipeline-stack" \
-  --region "${REGION}" \
-  --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-  --tags Environment="${ENVIRONMENT}" Project="${RESOURCE_PREFIX}" ResourceType="${RESOURCE_TYPE_COMPUTE}" \
-  --parameter-overrides \
-      Environment="${ENVIRONMENT}" \
-      ResourcePrefix="${RESOURCE_PREFIX}" \
-      Region="${REGION}" \
-      GitHubBranch="${GITHUB_BRANCH}" \
-      GitHubOwner="${GITHUB_OWNER}" \
-      GitHubRepository="${GITHUB_COMPUTE_REPO}" \
-      CodeStarConnectionArn="${CODESTAR_CONNECTION_ARN}" \
-      ResourceType="${RESOURCE_TYPE_COMPUTE}" \
-      SecretName="${SECRET_NAME}" \
-      MaxRetryAttempts="$MAX_RETRY_ATTEMPTS" \
-      TimeoutDurationSeconds="$TIMEOUT_DURIATION" \
-      BidPercentage="$BID_PERCENTAGE" \
-      MinvCpus="$MIN_VCPUS" \
-      MaxvCpus="$MAX_VCPUS" \
-      DesiredvCpus="$DESIRED_VCPUS" \
-      JobVcpus="$JOB_VCPUS" \
-      JobMemory="$JOB_MEMORY" \
-      VpcId="$VPC_ID" \
-      SubnetIds="$SUBNET_IDS" \
-      CreateBucket=$([[ $BUCKET_EXISTS == "false" ]] && echo "true" || echo "false") \
-  --no-fail-on-empty-changeset
+    --stack-name "$STACK_NAME" \
+    --s3-bucket "$S3_BUCKET" \
+    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+    --region "$AWS_REGION" \
+    --parameter-overrides \
+        Environment="$ENVIRONMENT" \
+        VpcId="$VPC_ID" \
+        SubnetId1="$SUBNET_ID1" \
+        SubnetId2="$SUBNET_ID2" \
+        ImageUri="$IMAGE_URI" \
+        ResourcePrefix="$RESOURCE_PREFIX" \
+        ResourceType="$RESOURCE_TYPE" \
+        RedisEndpoint="$REDIS_ENDPOINT" \
+        MaxRetryAttempts="$MAX_RETRY_ATTEMPTS" \
+        TimeoutDurationSeconds="$TIMEOUT_DURATION" \
+        BidPercentage="$BID_PERCENTAGE" \
+        MinvCpus="$MIN_VCPUS" \
+        MaxvCpus="$MAX_VCPUS" \
+        DesiredvCpus="$DESIRED_VCPUS" \
+        JobVcpus="$JOB_VCPUS" \
+        JobMemory="$JOB_MEMORY"
+
+echo "Deployment complete!"
