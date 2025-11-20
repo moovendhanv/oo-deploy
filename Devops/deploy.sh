@@ -60,7 +60,7 @@ sam deploy \
         ResourceType="$RESOURCE_TYPE" \
         RedisEndpoint="$REDIS_ENDPOINT" \
         MaxRetryAttempts="$MAX_RETRY_ATTEMPTS" \
-        TimeoutDurationSeconds="$TIMEOUT_DURATION" \
+        TimeoutDurationSeconds="$TIMEOUT_DURIATION" \
         BidPercentage="$BID_PERCENTAGE" \
         MinvCpus="$MIN_VCPUS" \
         MaxvCpus="$MAX_VCPUS" \
